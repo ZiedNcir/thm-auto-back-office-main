@@ -33,8 +33,7 @@ const facturMainOeuvreSchema = new mongoose.Schema({
             prix: Number
         }
     ],
-    nombreHeure: { type: Number, required: true },
-    prixParHeure: { type: Number, required: true },
+
     totalMainOeuvre: { type: Number, required: true },
     tva: { type: Number, default: 19 },
     ttc: { type: Number, required: true }

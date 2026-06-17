@@ -3,124 +3,144 @@ const HistoriqueFactures = require('../models/historiqueFactures');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 
-// Fonction utilitaire pour générer le numéro (Ex: Main-d'oeuvre:2026.01)
+// Génération automatique du numéro
 const genererNumeroFactureMainOeuvre = async () => {
-    const anneeEnCours = new Date().getFullYear();
-    // Le \\. permet d'échapper le point dans la RegEx
-    const prefixeRecherche = `Main-d'oeuvre:${anneeEnCours}\\.`;
+    const annee = new Date().getFullYear();
 
     const derniereFacture = await FacturMainOeuvre.findOne({
-        num_facture: new RegExp(`^${prefixeRecherche}`)
+        num_facture: new RegExp(`^Main-d'oeuvre:${annee}\\.`)
     }).sort({ createdAt: -1 });
 
-    let prochainNumero = 1;
+    let compteur = 1;
 
-    if (derniereFacture && derniereFacture.num_facture) {
-        const parties = derniereFacture.num_facture.split('.');
-        const compteurActuel = parseInt(parties[1], 10);
-        if (!isNaN(compteurActuel)) {
-            prochainNumero = compteurActuel + 1;
-        }
+    if (derniereFacture) {
+        const parties = derniereFacture.num_facture.split(".");
+        compteur = parseInt(parties[1]) + 1;
     }
 
-    const numeroFormate = String(prochainNumero).padStart(2, '0');
-    return `Main-d'oeuvre:${anneeEnCours}.${numeroFormate}`;
+    return `Main-d'oeuvre:${annee}.${String(compteur).padStart(2, "0")}`;
 };
+exports.getAllFactures = async (req, res) => {
+    try {
+        const factures = await FacturMainOeuvre.find().sort({ createdAt: -1 });
 
-// CREATE avec Transaction, Historique et Numérotation automatique
+        res.status(200).json({
+            success: true,
+            count: factures.length,
+            data: factures
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
 exports.createFacture = async (req, res) => {
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
+
         const {
-            changement = [],
-            dressage = [],
-            reparation = [],
-            nombreHeure,
-            prixParHeure,
-            tva = 19,
-            nomAdmin
+            nomAdmin,
+            nomClient,
+            numeroClient,
+            teleClient,
+            numCarteGrise,
+            matriculeVoiture,
+            dateIntervention,
+            changement,
+            dressage,
+            reparation,
+            totalMainOeuvre,
+            tva,
+            ttc
         } = req.body;
 
-        // vérifier admin ou sous-admin
+        // Vérification admin
         const admin = await User.findOne({
             username: nomAdmin,
-            role: { $in: ['admin', 'sous-admin'] }
+            role: { $in: ["admin", "sous-admin"] }
         }).session(session);
 
         if (!admin) {
             await session.abortTransaction();
             session.endSession();
+
             return res.status(404).json({
                 success: false,
-                message: "Utilisateur non autorisé à créer une facture"
+                message: "Utilisateur non autorisé."
             });
         }
 
-        // Calculs financiers
-        const totalChangement = changement.reduce((sum, item) => sum + (item.prix || 0), 0);
-        const totalDressage = dressage.reduce((sum, item) => sum + (item.prix || 0), 0);
-        const totalReparation = reparation.reduce((sum, item) => sum + (item.prix || 0), 0);
-        const totalMainOeuvre = nombreHeure * prixParHeure;
+        // Génération du numéro
+        const numero = await genererNumeroFactureMainOeuvre();
 
-        const totalHT = totalChangement + totalDressage + totalReparation + totalMainOeuvre;
-        const ttc = totalHT + (totalHT * tva / 100);
-
-        // Génération automatique du numéro unique
-        const numFactureAuto = await genererNumeroFactureMainOeuvre();
-
-        const nouvelleFactureData = {
-            ...req.body,
-            num_facture: numFactureAuto,
+        const [facture] = await FacturMainOeuvre.create([{
+            num_facture: numero,
+            nomAdmin,
+            nomClient,
+            numeroClient,
+            teleClient,
+            numCarteGrise,
+            matriculeVoiture,
+            dateIntervention,
+            changement,
+            dressage,
+            reparation,
             totalMainOeuvre,
+            tva,
             ttc
-        };
+        }], { session });
 
-        const [facture] = await FacturMainOeuvre.create([nouvelleFactureData], { session });
-
-        // Gestion de l'historique
+        // Historique
         let historique = await HistoriqueFactures.findOne({ nomAdmin }).session(session);
 
         if (!historique) {
-            await HistoriqueFactures.create([{
+
+            historique = await HistoriqueFactures.create([{
                 nomAdmin,
-                facturesMainOeuvre: [{ facture: facture._id, visibilite: true }]
+                facturesMainOeuvre: [{
+                    facture: facture._id,
+                    visibilite: true
+                }]
             }], { session });
+
         } else {
+
             historique.facturesMainOeuvre.push({
                 facture: facture._id,
                 visibilite: true
             });
+
             await historique.save({ session });
         }
 
         await session.commitTransaction();
         session.endSession();
 
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
-            message: 'Facture créée avec succès',
+            message: "Facture créée avec succès.",
             data: facture
         });
 
-    } catch (error) {
+    } catch (err) {
+
         await session.abortTransaction();
         session.endSession();
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
 
-// GET ALL
-exports.getAllFactures = async (req, res) => {
-    try {
-        const factures = await FacturMainOeuvre.find().sort({ createdAt: -1 });
-        res.status(200).json({ success: true, count: factures.length, data: factures });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
+        return res.status(500).json({
+            success: false,
+            message: err.message
+        });
 
+    }
+
+};
 // GET BY ID ou num_facture (Intelligent)
 exports.getFactureById = async (req, res) => {
     try {
@@ -148,69 +168,50 @@ exports.getFactureById = async (req, res) => {
 // UPDATE (Avec recherche intelligente + protection contre modification num_facture)
 exports.updateFacture = async (req, res) => {
     try {
-        const identifiantCible = decodeURIComponent(req.params.id).trim();
 
-        // Sécurité : Extraction de num_facture pour empêcher sa modification
-        const { num_facture, ...donneesRecues } = req.body;
+        const id = decodeURIComponent(req.params.id).trim();
 
-        let filtreRecherche = {};
-        if (mongoose.Types.ObjectId.isValid(identifiantCible)) {
-            filtreRecherche = { _id: identifiantCible };
+        const { num_facture, ...updateData } = req.body;
+
+        let filtre = {};
+
+        if (mongoose.Types.ObjectId.isValid(id)) {
+            filtre = { _id: id };
         } else {
-            filtreRecherche = { num_facture: identifiantCible };
+            filtre = { num_facture: id };
         }
 
-        let factureExistante = await FacturMainOeuvre.findOne(filtreRecherche);
+        const facture = await FacturMainOeuvre.findOneAndUpdate(
+            filtre,
+            updateData,
+            {
+                new: true,
+                runValidators: true
+            }
+        );
 
-        if (!factureExistante) {
-            return res.status(404).json({ success: false, message: "Facture non trouvée" });
+        if (!facture) {
+            return res.status(404).json({
+                success: false,
+                message: "Facture non trouvée"
+            });
         }
-
-        // Fusion des données existantes et des modifications pour recalculer proprement
-        const dataHT = {
-            ...factureExistante.toObject(),
-            ...donneesRecues
-        };
-
-        const {
-            changement = [],
-            dressage = [],
-            reparation = [],
-            nombreHeure,
-            prixParHeure,
-            tva = 19
-        } = dataHT;
-
-        // Recalcul des pièces et services
-        const totalChangement = changement.reduce((sum, item) => sum + (item.prix || 0), 0);
-        const totalDressage = dressage.reduce((sum, item) => sum + (item.prix || 0), 0);
-        const totalReparation = reparation.reduce((sum, item) => sum + (item.prix || 0), 0);
-        
-        // Recalcul main d'œuvre
-        const totalMainOeuvre = (nombreHeure || 0) * (prixParHeure || 0);
-
-        // Nouveau total HT et TTC
-        const totalHT = totalChangement + totalDressage + totalReparation + totalMainOeuvre;
-        const ttc = totalHT + (totalHT * tva / 100);
-
-        // Application des modifications au document Mongoose
-        Object.assign(factureExistante, donneesRecues);
-        factureExistante.totalMainOeuvre = totalMainOeuvre;
-        factureExistante.ttc = ttc;
-
-        await factureExistante.save();
 
         res.status(200).json({
             success: true,
-            message: "Facture mise à jour avec recalcul",
-            data: factureExistante
+            message: "Facture mise à jour avec succès",
+            data: facture
         });
 
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+    } catch (err) {
+
+        res.status(500).json({
+            success: false,
+            message: err.message
+        });
+
     }
 };
-
 // DELETE avec retrait automatique de l'historique (Sécurisé)
 exports.deleteFacture = async (req, res) => {
     const session = await mongoose.startSession();
