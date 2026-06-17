@@ -57,7 +57,7 @@ const connectDB = async () => {
     }
     
     try {
-        await mongoose.connect(mongoUri, {
+        await mongoose.connect("mongodb+srv://THM:THM20113786@thm-auto.151lpuv.mongodb.net/THM-AUTO?retryWrites=true&w=majority", {
             useNewUrlParser: true,
             useUnifiedTopology: true,
         });
