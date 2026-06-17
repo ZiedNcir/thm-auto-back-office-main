@@ -42,6 +42,7 @@ app.get('/', (req, res) => {
 // Hardcoded MongoDB URI (works even if env vars fail)
 const MONGO_URI = "mongodb+srv://THM:THM20113786@thm-auto.151lpuv.mongodb.net/THM-AUTO?retryWrites=true&w=majority";
 const PORT = 5000;
+const JWT_SECRET="7WK5T79u5mIzjIXXi2oI9Fglmgivv7RAJ7izyj9tUyQ";
 
 
 // Connect to MongoDB
