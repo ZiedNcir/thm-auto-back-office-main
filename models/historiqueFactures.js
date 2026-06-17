@@ -36,15 +36,7 @@ const historiqueSchema = new mongoose.Schema({
  
     facturesDevice: [
         {
-            facture: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'FactureDevice',
-                required: true
-            },
-            visibilite: {
-                type: Boolean,
-                default: true
-            }
+            
         }
     ]
 

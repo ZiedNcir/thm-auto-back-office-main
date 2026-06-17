@@ -171,14 +171,21 @@ exports.deleteFacturePeinture = async (req, res) => {
     try {
         const numFactureCible = decodeURIComponent(req.params.id).trim();
 
-        // 1. Trouver et supprimer la facture par son numéro unique
-        const facture = await FacturePeinture.findOneAndDelete({ num_facture: numFactureCible }).session(session);
-
-        if (!facture) {
-            await session.abortTransaction();
-            session.endSession();
-            return res.status(404).json({ success: false, message: "Facture introuvable." });
-        }
+        let filtreRecherche = {};
+                if (mongoose.Types.ObjectId.isValid(numFactureCible)) {
+                    filtreRecherche = { _id: numFactureCible };
+                } else {
+                    filtreRecherche = { num_facture: numFactureCible };
+                }
+        
+                // 1. Suppression de la facture
+                const facture = await FacturePeinture.findOneAndDelete(filtreRecherche).session(session);
+        
+                if (!facture) {
+                    await session.abortTransaction();
+                    session.endSession();
+                    return res.status(404).json({ success: false, message: 'Facture non trouvée' });
+                }
 
         // 2. Supprimer la référence de l'ID de cette facture dans le tableau facturesPeinture de l'historique
         await HistoriqueFactures.updateMany(
