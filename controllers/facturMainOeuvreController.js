@@ -4,21 +4,37 @@ const User = require('../models/User');
 const mongoose = require('mongoose');
 
 // Génération automatique du numéro
+
 const genererNumeroFactureMainOeuvre = async () => {
-    const annee = new Date().getFullYear();
-
-    const derniereFacture = await FacturMainOeuvre.findOne({
-        num_facture: new RegExp(`^Main-d'oeuvre:${annee}\\.`)
-    }).sort({ createdAt: -1 });
-
-    let compteur = 1;
-
-    if (derniereFacture) {
-        const parties = derniereFacture.num_facture.split(".");
-        compteur = parseInt(parties[1]) + 1;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const prefix = `${year}${month}`;
+    
+    try {
+        // Find the latest invoice for the current year-month
+        const latestInvoice = await FacturMainOeuvre.findOne({
+            num_facture: { $regex: `^${prefix}` }
+        }).sort({ num_facture: -1 }).lean();
+        
+        let nextNumber = 1;
+        
+        if (latestInvoice?.num_facture) {
+            // Extract the number part after the year-month
+            const match = latestInvoice.num_facture.match(/^\d{6}(\d+)$/);
+            if (match) {
+                nextNumber = parseInt(match[1], 10) + 1;
+            }
+        }
+        
+        // Format number with leading zeros (e.g., 001, 002, ..., 999)
+        const formattedNumber = String(nextNumber).padStart(3, '0');
+        return `${prefix}${formattedNumber}`;
+        
+    } catch (error) {
+        console.error('Error generating invoice number:', error);
+        throw new Error('Failed to generate invoice number');
     }
-
-    return `Main-d'oeuvre:${annee}.${String(compteur).padStart(2, "0")}`;
 };
 exports.getAllFactures = async (req, res) => {
     try {
