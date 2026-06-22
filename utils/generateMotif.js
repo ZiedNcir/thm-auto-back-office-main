@@ -9,14 +9,14 @@ const generateMotif = async () => {
     try {
         // Find the latest invoice for the current year-month
         const latestInvoice = await Device.findOne({
-            num_facture: { $regex: `^${prefix}` }
-        }).sort({ num_facture: -1 }).lean();
+            motif: { $regex: `^${prefix}` }
+        }).sort({ motif: -1 }).lean();
         
         let nextNumber = 1;
         
-        if (latestInvoice?.num_facture) {
+        if (latestInvoice?.motif) {
             // Extract the number part after the year-month
-            const match = latestInvoice.num_facture.match(/^\d{6}(\d+)$/);
+            const match = latestInvoice.motif.match(/^\d{6}(\d+)$/);
             if (match) {
                 nextNumber = parseInt(match[1], 10) + 1;
             }
