@@ -62,6 +62,7 @@ const deviceSchema = new mongoose.Schema({
     },
 
     factureMainOeuvre: mainOeuvreSchema,
+    dateIntervention: { type: Date, required: true },
 
     facturePeinture: [peintureSchema],
 
@@ -83,34 +84,7 @@ const deviceSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 /* ===== PRE SAVE (CORRECTEMENT PLACÉ) ===== */
-deviceSchema.pre('save', async function () {
 
-    /* MAIN D'OEUVRE */
-    let totalMO = 0;
-
-    const sections = ['changement', 'dressage', 'reparation'];
-
-    sections.forEach(sec => {
-        (this.factureMainOeuvre?.[sec] || []).forEach(item => {
-            totalMO += item.prix || 0;
-        });
-    });
-
-    this.totalMainOeuvre = totalMO;
-
-    /* PEINTURE */
-    let totalP = 0;
-
-    (this.facturePeinture || []).forEach(item => {
-        item.total = item.quantite * item.prixUnitaire;
-        totalP += item.total;
-    });
-
-    this.totalPeinture = totalP;
-
-    /* TOTAL FINAL */
-    this.totalGeneral = totalMO + totalP;
-});
 
 /* ===== EXPORT À LA FIN ===== */
 

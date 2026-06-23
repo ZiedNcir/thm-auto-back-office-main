@@ -61,17 +61,36 @@ exports.getOneDevice = async (req, res) => {
 };
 exports.updateMainOeuvre = async (req, res) => {
     try {
-        const device = await Device.findById(req.params.id);
+
+        const totalMainOeuvre = Number(req.body.totalMainOeuvre || 0);
+
+        const device = await Device.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: {
+                    nomAdmin: req.body.nomAdmin,
+
+                    client: req.body.client,
+
+                    dateIntervention: req.body.dateIntervention,
+
+                    factureMainOeuvre: req.body.factureMainOeuvre,
+
+                    totalMainOeuvre,
+                    totalGeneral: totalMainOeuvre
+                }
+            },
+            {
+                new: true,
+                runValidators: true
+            }
+        );
 
         if (!device) {
             return res.status(404).json({
                 message: "Device introuvable"
             });
         }
-
-        device.factureMainOeuvre = req.body.factureMainOeuvre;
-
-        await device.save();
 
         res.status(200).json(device);
 
@@ -82,26 +101,52 @@ exports.updateMainOeuvre = async (req, res) => {
     }
 };
 exports.updatePeinture = async (req, res) => {
-    try {
-        const device = await Device.findById(req.params.id);
+  try {
+    const facturePeinture = (req.body.facturePeinture || []).map((item) => ({
+      nom: item.nom,
+      quantite: Number(item.quantite || 0),
+      prixUnitaire: Number(item.prixUnitaire || 0),
+      total: Number(item.quantite || 0) * Number(item.prixUnitaire || 0),
+    }));
 
-        if (!device) {
-            return res.status(404).json({
-                message: "Device introuvable"
-            });
-        }
+    const totalPeinture = facturePeinture.reduce(
+      (sum, item) => sum + item.total,
+      0
+    );
 
-        device.facturePeinture = req.body.facturePeinture;
+    const device = await Device.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          nomAdmin: req.body.nomAdmin,
+          client: req.body.client,
 
-        await device.save();
+          dateIntervention: req.body.dateIntervention,
+          heureFacture: req.body.heureFacture,
 
-        res.status(200).json(device);
+          facturePeinture,
+          totalPeinture,
+          totalGeneral: totalPeinture,
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
-    } catch (error) {
-        res.status(500).json({
-            message: error.message
-        });
+    if (!device) {
+      return res.status(404).json({
+        message: "Device introuvable",
+      });
     }
+
+    res.status(200).json(device);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
 };
 exports.deleteDevice = async (req, res) => {
     try {
